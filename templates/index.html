@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Text Image Noise Removal</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f4f8;
+      color: #2d3748;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #2b6cb0, #4299e1);
+      color: white;
+      padding: 1.5rem 2rem;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    header h1 { font-size: 1.8rem; font-weight: 700; }
+    header p  { font-size: 0.95rem; opacity: 0.85; margin-top: 0.3rem; }
+
+    main {
+      max-width: 1000px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .banner {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.92rem;
+      color: #856404;
+    }
+    .banner code { background: #f8d7da; padding: 2px 6px; border-radius: 4px; }
+
+    /* Drop zone */
+    #drop-zone {
+      border: 2.5px dashed #90cdf4;
+      border-radius: 12px;
+      background: white;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    #drop-zone.drag-over {
+      background: #ebf8ff;
+      border-color: #2b6cb0;
+    }
+    #drop-zone svg { color: #90cdf4; margin-bottom: 1rem; }
+    #drop-zone h2  { font-size: 1.2rem; color: #4a5568; }
+    #drop-zone p   { font-size: 0.9rem; color: #718096; margin-top: 0.4rem; }
+    #file-input    { display: none; }
+
+    .btn {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.6rem 1.5rem;
+      background: #3182ce;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-decoration: none;
+    }
+    .btn:hover { background: #2b6cb0; }
+    .btn.secondary { background: #48bb78; }
+    .btn.secondary:hover { background: #38a169; }
+
+    /* Spinner */
+    #spinner {
+      display: none;
+      margin: 2rem auto;
+      text-align: center;
+    }
+    .loader {
+      border: 5px solid #e2e8f0;
+      border-top: 5px solid #3182ce;
+      border-radius: 50%;
+      width: 48px; height: 48px;
+      animation: spin 0.9s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Results */
+    #results {
+      display: none;
+      margin-top: 2rem;
+    }
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+    @media (max-width: 640px) { .results-grid { grid-template-columns: 1fr; } }
+
+    .result-card {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .result-card .label {
+      padding: 0.7rem 1rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      background: #edf2f7;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .result-card .label.noisy   { color: #c53030; }
+    .result-card .label.cleaned { color: #276749; }
+    .result-card img {
+      width: 100%;
+      height: 320px;
+      object-fit: contain;
+      background: #f7fafc;
+      padding: 8px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    #error-box {
+      display: none;
+      margin-top: 1.5rem;
+      background: #fff5f5;
+      border: 1px solid #fc8181;
+      color: #c53030;
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🧹 Text Image Noise Removal</h1>
+  <p>Upload a noisy scanned image — the U-Net model will clean it instantly</p>
+</header>
+
+<main>
+
+  {% if not checkpoint_ready %}
+  <div class="banner">
+    ⚠️ <strong>Model not trained yet.</strong>
+    First generate data: <code>python data/generate_dataset.py</code>
+    then train: <code>python train.py</code>
+  </div>
+  {% endif %}
+
+  <!-- Drop zone -->
+  <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+    <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14v-4H8l4-4 4 4h-3v4h-2z"/>
+    </svg>
+    <h2>Drag & drop your noisy image here</h2>
+    <p>or click to browse — PNG, JPG, JPEG, BMP, TIFF supported</p>
+    <button class="btn" type="button">Choose File</button>
+  </div>
+  <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.bmp,.tiff,.webp" />
+
+  <!-- Spinner -->
+  <div id="spinner">
+    <div class="loader"></div>
+    <p style="color:#4a5568">Denoising… please wait</p>
+  </div>
+
+  <!-- Error -->
+  <div id="error-box"></div>
+
+  <!-- Results -->
+  <div id="results">
+    <h2 style="font-size:1.2rem; color:#276749;">✅ Denoising Complete</h2>
+    <div class="results-grid">
+      <div class="result-card">
+        <div class="label noisy">📷 Noisy Input</div>
+        <img id="noisy-img" src="" alt="Noisy input" />
+      </div>
+      <div class="result-card">
+        <div class="label cleaned">✨ Cleaned Output</div>
+        <img id="cleaned-img" src="" alt="Cleaned output" />
+      </div>
+    </div>
+    <div class="actions">
+      <a id="download-btn" href="#" class="btn secondary">⬇ Download Cleaned Image</a>
+      <button class="btn" onclick="resetUI()">🔄 Clean Another Image</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const dropZone   = document.getElementById('drop-zone');
+  const fileInput  = document.getElementById('file-input');
+  const spinner    = document.getElementById('spinner');
+  const results    = document.getElementById('results');
+  const errorBox   = document.getElementById('error-box');
+  const noisyImg   = document.getElementById('noisy-img');
+  const cleanedImg = document.getElementById('cleaned-img');
+  const dlBtn      = document.getElementById('download-btn');
+
+  // Drag-and-drop events
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) uploadFile(f);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) uploadFile(fileInput.files[0]);
+  });
+
+  function uploadFile(file) {
+    dropZone.style.display = 'none';
+    spinner.style.display  = 'block';
+    results.style.display  = 'none';
+    errorBox.style.display = 'none';
+
+    const fd = new FormData();
+    fd.append('file', file);
+
+    fetch('/upload', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(data => {
+        spinner.style.display = 'none';
+        if (data.error) {
+          showError(data.error);
+          return;
+        }
+        noisyImg.src   = data.noisy_url   + '?t=' + Date.now();
+        cleanedImg.src = data.cleaned_url + '?t=' + Date.now();
+        dlBtn.href     = '/download/' + data.filename;
+        results.style.display = 'block';
+      })
+      .catch(err => {
+        spinner.style.display = 'none';
+        showError('Network error: ' + err.message);
+      });
+  }
+
+  function showError(msg) {
+    dropZone.style.display = 'block';
+    errorBox.style.display = 'block';
+    errorBox.textContent   = '❌ ' + msg;
+  }
+
+  function resetUI() {
+    results.style.display  = 'none';
+    errorBox.style.display = 'none';
+    dropZone.style.display = 'block';
+    fileInput.value        = '';
+  }
+</script>
+</body>
+</html>

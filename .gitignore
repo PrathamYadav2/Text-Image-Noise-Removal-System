@@ -1,0 +1,32 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Uploaded & generated files
+static/uploads/*
+!static/uploads/.gitkeep
+static/results/*
+!static/results/.gitkeep
+
+# Checkpoint model files (optional if large, or comment out if you want to push model)
+checkpoints/*.pth
+
+# Generated datasets (can be generated locally)
+data/clean/*
+!data/clean/.gitkeep
+data/noisy/*
+!data/noisy/.gitkeep
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
